@@ -161,6 +161,8 @@ command-line options · `130` interrupted.
 # model: prok666_keephyp (sha256 e608f60a1965)
 # mode: single
 # translation table: 11
+# max gene length: 125000 nt
+# network window: 49995 nt
 # command: deeprok -i genome.fna -o genes.gff3
 NC_000913.3  deeprok  CDS  337  2799  0.996  +  0  ID=NC_000913.3_1;start_codon=ATG;stop_codon=TGA;conf=0.996;p_start=1.000;p_stop=1.000
 ```
