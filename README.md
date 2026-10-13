@@ -34,6 +34,18 @@ builds a noarch package whose tests run deeprok on the bundled genome slice).
 pip only: `pip install .` (pulls `torch` and `numpy` from PyPI; on Linux, install the
 CPU wheel of torch first if you don't want the ~2 GB CUDA build).
 
+On a network that blocks `anaconda.org` (Mass General Brigham does, for licensing
+reasons — see MGB KB0043690), point conda at the mirror instead:
+
+```bash
+conda config --set channel_alias https://anaconda.mgb.org/   # for environment.yml
+sed -i '' 's#conda.anaconda.org#anaconda.mgb.org#' conda/lock/*.txt   # for the lock files
+```
+
+`channel_alias` does not rewrite the lock files, because those carry full URLs —
+hence the second line. The mirror's certificate is valid, so `ssl_verify: false`
+(which that article suggests) is not needed. pip and PyPI are unaffected.
+
 **GPU**: optional; only the network step uses it, the rest of the pipeline runs on
 CPU either way. With a CUDA build of PyTorch, `--device auto` (the default) uses
 the GPU; a 5 Mb genome then takes ~10 s for that step instead of ~2 min. On Apple
