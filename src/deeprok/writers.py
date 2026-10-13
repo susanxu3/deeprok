@@ -6,7 +6,7 @@ from typing import Dict, Iterable, List, TextIO, Tuple
 
 from .pipeline import Gene
 
-SOURCE = "tprok"
+SOURCE = "deeprok"
 
 # NCBI translation table 11 (bacteria, archaea, plant plastids), TCAG order.
 _B = "TCAG"

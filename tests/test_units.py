@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from tprok.pipeline import Gene, data_path, model_card
-from tprok.writers import _esc_attr, _esc_seqid, gene_ids, translate, write_gff3
+from deeprok.pipeline import Gene, data_path, model_card
+from deeprok.writers import _esc_attr, _esc_seqid, gene_ids, translate, write_gff3
 
 PKG = Path(__file__).resolve().parents[1]
 

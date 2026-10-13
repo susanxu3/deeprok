@@ -1,7 +1,7 @@
 # conda-build / bioconda recipe. For a local build from this checkout:
 #   conda build conda/recipe -c conda-forge
 # For bioconda, replace `source: path:` with the release tarball url + sha256.
-{% set name = "tprok" %}
+{% set name = "deeprok" %}
 {% set version = "0.1.0" %}
 
 package:
@@ -16,7 +16,7 @@ build:
   noarch: python
   script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
   entry_points:
-    - tprok = tprok.cli:main
+    - deeprok = deeprok.cli:main
   run_exports:
     - {{ pin_subpackage(name, max_pin="x.x") }}
 
@@ -33,18 +33,18 @@ requirements:
 
 test:
   imports:
-    - tprok
-    - tprok._core.hmm_duration_decode
+    - deeprok
+    - deeprok._core.hmm_duration_decode
   source_files:
     - tests/data/ecoli_k12_200kb.fna.gz
   commands:
-    - tprok --version
-    - tprok --help
-    - tprok -q -p meta -i tests/data/ecoli_k12_200kb.fna.gz -o test.gff3 -a test.faa
+    - deeprok --version
+    - deeprok --help
+    - deeprok -q -p meta -i tests/data/ecoli_k12_200kb.fna.gz -o test.gff3 -a test.faa
     - test -s test.gff3 && test -s test.faa
 
 about:
-  home: https://github.com/TBD/tprok
+  home: https://github.com/TBD/deeprok
   summary: Neural prokaryotic gene finder (CNN+BiLSTM + segmental ORF HMM)
   description: |
     Predicts protein-coding genes in bacterial and archaeal genomes. A CNN+BiLSTM

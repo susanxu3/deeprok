@@ -1,4 +1,4 @@
-"""Command-line interface: ``tprok -i genome.fna -o genes.gff3 -a proteins.faa``."""
+"""Command-line interface: ``deeprok -i genome.fna -o genes.gff3 -a proteins.faa``."""
 from __future__ import annotations
 
 import argparse
@@ -12,13 +12,14 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from . import __version__
+from .pipeline import MAX_GENE_LEN, TILE_WINDOW
 
 EPILOG = """\
 examples:
-  tprok -i genome.fna -o genes.gff3 -a proteins.faa
-  tprok -i genome.fna.gz -o genes.gff3 -d genes.fna --threads 8
-  tprok -i small_contigs.fna -o genes.gff3 -p meta
-  cat genome.fna | tprok > genes.gff3
+  deeprok -i genome.fna -o genes.gff3 -a proteins.faa
+  deeprok -i genome.fna.gz -o genes.gff3 -d genes.fna --threads 8
+  deeprok -i small_contigs.fna -o genes.gff3 -p meta
+  cat genome.fna | deeprok > genes.gff3
 
 modes:
   single  (default) two passes: the second uses a start-site ranker trained on
@@ -41,7 +42,7 @@ def _positive_int(text: str) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="tprok",
+        prog="deeprok",
         description="Neural prokaryotic gene finder: CNN+BiLSTM base-level predictions "
                     "decoded by a segmental ORF HMM.",
         epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -63,11 +64,13 @@ def build_parser() -> argparse.ArgumentParser:
                      help="CPU threads (default 4)")
     run.add_argument("--batch-size", type=_positive_int, metavar="N",
                      help="tiles per network batch (default 32 on GPU, 4 on CPU)")
-    run.add_argument("--window", type=int, default=49995, metavar="NT",
+    run.add_argument("--max-gene-len", type=int, default=MAX_GENE_LEN, metavar="NT",
+                     help="longest gene that can be called, in nt (default %(default)s)")
+    run.add_argument("--window", type=int, default=TILE_WINDOW, metavar="NT",
                      help="network tile length in nt, multiple of 3 (default 49995)")
     ap.add_argument("-q", "--quiet", action="store_true", help="no progress messages on stderr")
     ap.add_argument("-v", "--version", action="version",
-                    version=f"tprok {__version__}")
+                    version=f"deeprok {__version__}")
     return ap
 
 
@@ -94,11 +97,11 @@ def _stdout_to_stderr(silence: bool = False):
 
 def _check_input(path: Path) -> None:
     if not path.exists():
-        sys.exit(f"tprok: input not found: {path}")
+        sys.exit(f"deeprok: input not found: {path}")
     if path.is_dir():
-        sys.exit(f"tprok: input is a directory, expected a FASTA file: {path}")
+        sys.exit(f"deeprok: input is a directory, expected a FASTA file: {path}")
     if not os.access(path, os.R_OK):
-        sys.exit(f"tprok: input is not readable (permission denied): {path}")
+        sys.exit(f"deeprok: input is not readable (permission denied): {path}")
 
 
 def _check_outputs(args) -> None:
@@ -110,28 +113,28 @@ def _check_outputs(args) -> None:
     for flag, p in files:
         p = Path(p)
         if p.is_dir():
-            sys.exit(f"tprok: {flag} {p} is a directory")
+            sys.exit(f"deeprok: {flag} {p} is a directory")
         if _is_special(p):            # /dev/null, a named pipe, /dev/stdout ...
             if not os.access(p, os.W_OK):
-                sys.exit(f"tprok: {flag} {p}: permission denied")
+                sys.exit(f"deeprok: {flag} {p}: permission denied")
             continue
         parent = p.parent if str(p.parent) else Path(".")
         if not parent.is_dir():
-            sys.exit(f"tprok: {flag} {p}: directory {parent} does not exist")
+            sys.exit(f"deeprok: {flag} {p}: directory {parent} does not exist")
         if not os.access(parent, os.W_OK) or (p.exists() and not os.access(p, os.W_OK)):
-            sys.exit(f"tprok: {flag} {p}: permission denied")
+            sys.exit(f"deeprok: {flag} {p}: permission denied")
         r = p.resolve()
         if r == inp:
-            sys.exit(f"tprok: {flag} {p} would overwrite the input")
+            sys.exit(f"deeprok: {flag} {p} would overwrite the input")
         if r in seen:
-            sys.exit(f"tprok: {seen[r]} and {flag} both write to {p}")
+            sys.exit(f"deeprok: {seen[r]} and {flag} both write to {p}")
         seen[r] = flag
     k = args.keep_intermediates
     if k is not None:
         if k.exists() and not k.is_dir():
-            sys.exit(f"tprok: --keep-intermediates {k} exists and is not a directory")
+            sys.exit(f"deeprok: --keep-intermediates {k} exists and is not a directory")
         if not k.exists() and not (k.parent.is_dir() and os.access(k.parent, os.W_OK)):
-            sys.exit(f"tprok: --keep-intermediates {k}: cannot create it "
+            sys.exit(f"deeprok: --keep-intermediates {k}: cannot create it "
                      f"(parent {k.parent} missing or not writable)")
 
 
@@ -167,18 +170,18 @@ def main(argv=None) -> int:
     try:
         return _main(argv)
     except KeyboardInterrupt:
-        print("tprok: interrupted", file=sys.stderr)
+        print("deeprok: interrupted", file=sys.stderr)
         return 130
     except BrokenPipeError:
-        # reader of stdout went away (e.g. `tprok ... | head`); not an error
+        # reader of stdout went away (e.g. `deeprok ... | head`); not an error
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())   # silence the flush at interpreter exit
         return 0
     except MemoryError:
-        sys.exit("tprok: out of memory (a 9-Mb genome needs ~5 GB; try --batch-size 1)")
+        sys.exit("deeprok: out of memory (a 9-Mb genome needs ~5 GB; try --batch-size 1)")
     except OSError as e:
         where = f": {e.filename}" if getattr(e, "filename", None) else ""
-        sys.exit(f"tprok: I/O error{where}: {e.strerror or e}")
+        sys.exit(f"deeprok: I/O error{where}: {e.strerror or e}")
 
 
 def _main(argv=None) -> int:
@@ -192,8 +195,10 @@ def _main(argv=None) -> int:
     from .writers import write_faa, write_fna, write_gff3
 
     log = (lambda msg: None) if args.quiet else (lambda msg: print(msg, file=sys.stderr, flush=True))
+    if args.max_gene_len < 300:
+        sys.exit("deeprok: --max-gene-len must be at least 300")
     if args.window % 3 or args.window < 9990:
-        sys.exit("tprok: --window must be a multiple of 3 and at least 9990")
+        sys.exit("deeprok: --window must be a multiple of 3 and at least 9990")
     if args.input != "-":
         _check_input(Path(args.input))
     _check_outputs(args)
@@ -202,7 +207,7 @@ def _main(argv=None) -> int:
         if args.input == "-":
             if sys.stdin.isatty():
                 build_parser().print_usage(sys.stderr)
-                sys.exit("tprok: no input (use -i FASTA or pipe a FASTA on stdin)")
+                sys.exit("deeprok: no input (use -i FASTA or pipe a FASTA on stdin)")
             td = stack.enter_context(tempfile.TemporaryDirectory())
             fasta = Path(td) / "stdin.fna"
             with fasta.open("wb") as fh:
@@ -215,18 +220,21 @@ def _main(argv=None) -> int:
             with _stdout_to_stderr(silence=args.quiet):
                 res = annotate(fasta, mode=args.mode, device=args.device, threads=args.threads,
                                batch_size=args.batch_size, window=args.window,
+                               max_gene_len=args.max_gene_len,
                                keep_dir=args.keep_intermediates, log=log, input_label=label)
         except ValueError as e:
-            sys.exit(f"tprok: {e}")
+            sys.exit(f"deeprok: {e}")
 
         card = model_card()
         header = [
-            ("tprok version", __version__),
+            ("deeprok version", __version__),
             ("model", f"{card['name']} (sha256 {card['sha256'][:12]})"),
             ("mode", res.mode_used + ("" if res.mode_used == args.mode
                                       else f" (requested {args.mode}; see stderr)")),
             ("translation table", "11"),
-            ("command", "tprok " + " ".join(shlex.quote(a) for a in (argv if argv is not None
+            ("max gene length", f"{args.max_gene_len} nt"),
+            ("network window", f"{args.window} nt"),
+            ("command", "deeprok " + " ".join(shlex.quote(a) for a in (argv if argv is not None
                                                                       else sys.argv[1:]))),
         ]
         if args.proteins:

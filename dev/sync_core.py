@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy the inference path from the research repo into ``src/tprok/_core/``.
+"""Copy the inference path from the research repo into ``src/deeprok/_core/``.
 
 The packaged tool must produce the same calls as the cluster pipeline
 (``cluster/redecode_keephyp666_stats.sbatch``), so the decoder, model and ranker
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-CORE = REPO / "package" / "src" / "tprok" / "_core"
+CORE = REPO / "package" / "src" / "deeprok" / "_core"
 
 # research path -> module name inside _core
 MODULES = {

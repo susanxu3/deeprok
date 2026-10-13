@@ -1,6 +1,6 @@
-# tprok
+# deeprok
 
-*(working name)* — a neural gene finder for bacterial and archaeal genomes.
+A neural gene finder for bacterial and archaeal genomes.
 
 A CNN + BiLSTM network scores every base of the genome (coding frame, start
 codon, stop codon, intergenic). A segmental ORF HMM turns those scores into
@@ -9,7 +9,7 @@ first-pass calls and used to refine the translation starts — no reference
 annotation and no internet connection needed.
 
 ```
-tprok -i genome.fna -o genes.gff3 -a proteins.faa
+deeprok -i genome.fna -o genes.gff3 -a proteins.faa
 ```
 
 ## Install
@@ -17,19 +17,19 @@ tprok -i genome.fna -o genes.gff3 -a proteins.faa
 Conda (recommended; CPU):
 
 ```bash
-git clone <repo> && cd tprok
+git clone <repo> && cd deeprok
 conda env create -f environment.yml      # python 3.12, pytorch 2.14.1 (cpu), numpy 2.5.4
-conda activate tprok
+conda activate deeprok
 pip install --no-deps .
-tprok --version
+deeprok --version
 ```
 
 The model weights (4.6 MB) ship inside the package; nothing is downloaded at run
 time. `environment.yml` pins the exact versions the release was tested with;
 `conda/lock/<platform>.txt` (`linux-64`, `osx-arm64`) is an explicit lock file for a
-bit-for-bit identical environment (`conda create -n tprok --file conda/lock/linux-64.txt`).
+bit-for-bit identical environment (`conda create -n deeprok --file conda/lock/linux-64.txt`).
 A conda recipe is in `conda/recipe/` (`conda build conda/recipe -c conda-forge`
-builds a noarch package whose tests run tprok on the bundled genome slice).
+builds a noarch package whose tests run deeprok on the bundled genome slice).
 
 pip only: `pip install .` (pulls `torch` and `numpy` from PyPI; on Linux, install the
 CPU wheel of torch first if you don't want the ~2 GB CUDA build).
@@ -43,9 +43,9 @@ identical calls). `auto` never picks MPS; ask for it explicitly.
 ## Usage
 
 ```
-tprok -i FASTA [-o GFF3] [-a FAA] [-d FNA] [-p single|meta]
-      [--threads N] [--device auto|cpu|cuda|mps] [--batch-size N] [--window NT]
-      [--keep-intermediates DIR] [-q] [-v]
+deeprok -i FASTA [-o GFF3] [-a FAA] [-d FNA] [-p single|meta]
+        [--threads N] [--device auto|cpu|cuda|mps] [--batch-size N]
+        [--max-gene-len NT] [--window NT] [--keep-intermediates DIR] [-q] [-v]
 ```
 
 | Option | Meaning | Default |
@@ -58,23 +58,46 @@ tprok -i FASTA [-o GFF3] [-a FAA] [-d FNA] [-p single|meta]
 | `--threads` | CPU threads | 4 |
 | `--device` | network device; `auto` = CUDA if available, else CPU | `auto` |
 | `--batch-size` | network tiles per batch | 32 GPU / 4 CPU |
+| `--max-gene-len` | longest gene that can be called, nt (below) | 125000 |
 | `--window` | network tile length (nt, multiple of 3, ≥ 9990) | 49995 |
 | `--keep-intermediates` | also save base-level probabilities, pass-1 calls, ranker model | — |
 | `-q, --quiet` | no progress output | |
 | `-v, --version` | print version | |
 
 Progress goes to stderr; stdout carries only the GFF3 (when `-o` is not given), so
-`tprok -i g.fna > g.gff3` and pipes are safe.
+`deeprok -i g.fna > g.gff3` and pipes are safe.
 
 ### Modes
 
 * **single** (default) — one genome, complete or draft. Two decoding passes: the
   second uses a start-site ranker trained on this genome's first-pass genes,
   pooled over all its contigs. Needs ≥ 20 kb of sequence and ≥ 100 confident
-  first-pass genes; below that tprok falls back to `meta` automatically and says
+  first-pass genes; below that deeprok falls back to `meta` automatically and says
   so on stderr and in the GFF header.
 * **meta** — first pass only. For short sequences, plasmids on their own, or
   mixed metagenomic bins where one ranker per input would be wrong.
+
+### Gene length and tile size
+
+Neither option normally needs changing; both are recorded in the GFF3 header.
+
+**`--max-gene-len`** is a hard ceiling in the decoder, not a prior: a gene longer
+than this cannot be emitted at all, and a real one is instead reported with its
+stop codon correct and its start cut back to the limit. Across 944 GTDB genomes
+(3.0 M CDS) the longest CDS is 119 kb, and 147 CDS in 89 genomes (9 % of genomes)
+exceed 20 kb — giant surface, adhesin and NRPS/PKS proteins. The default 125000
+covers all of them. Raising it is close to free: on the 4 curated benchmark
+genomes 20 kb → 150 kb left every call bit-identical, and on 3 held-out genomes
+holding 12 CDS above 20 kb the call count and runtime were unchanged while 10 of
+the 12 moved from truncated to exactly right. Lowering it only truncates genes,
+so do that only to reproduce an older run (the published runs used 20000, which
+on their genomes gives identical output).
+
+**`--window`** is the tile length the network scores at once. Memory is flat in
+genome size because of the tiling, so a larger window costs RAM without buying
+accuracy: 50 kb tiles already reproduce whole-chromosome inference to within
+0.008 in probability (no base differs by more than 0.05), while 10 kb tiles
+differ by up to 0.85 at tile seams. Below ~10 kb, accuracy degrades.
 
 ## Input
 
@@ -93,7 +116,7 @@ Progress goes to stderr; stdout carries only the GFF3 (when `-o` is not given), 
 ### Errors
 
 Input is checked before the network runs, and every problem ends with a
-one-line `tprok: …` message on stderr and a non-zero exit code:
+one-line `deeprok: …` message on stderr and a non-zero exit code:
 
 | Problem | Message (abridged) |
 |---|---|
@@ -107,7 +130,7 @@ one-line `tprok: …` message on stderr and a non-zero exit code:
 | missing / unreadable input; output directory missing or not writable; `-o` = input | named in the message |
 | `--device cuda` without a GPU | `no CUDA GPU available …; use --device cpu` |
 
-A plain-text FASTA cut short cannot be told from a complete one; tprok warns
+A plain-text FASTA cut short cannot be told from a complete one; deeprok warns
 when the file does not end with a newline, the usual trace of an interrupted
 copy. Output files are written to a temporary file and renamed when complete,
 so a failed or interrupted run (Ctrl-C exits with 130) never leaves a truncated
@@ -122,12 +145,12 @@ command-line options · `130` interrupted.
 ```
 ##gff-version 3
 ##sequence-region NC_000913.3 1 4641652
-# tprok version: 0.1.0
+# deeprok version: 0.1.0
 # model: prok666_keephyp (sha256 e608f60a1965)
 # mode: single
 # translation table: 11
-# command: tprok -i genome.fna -o genes.gff3
-NC_000913.3  tprok  CDS  337  2799  0.996  +  0  ID=NC_000913.3_1;start_codon=ATG;stop_codon=TGA;conf=0.996;p_start=1.000;p_stop=1.000
+# command: deeprok -i genome.fna -o genes.gff3
+NC_000913.3  deeprok  CDS  337  2799  0.996  +  0  ID=NC_000913.3_1;start_codon=ATG;stop_codon=TGA;conf=0.996;p_start=1.000;p_stop=1.000
 ```
 
 One `CDS` line per gene, sorted by sequence (input order) then position.
@@ -135,7 +158,7 @@ One `CDS` line per gene, sorted by sequence (input order) then position.
 | Column | Content |
 |---|---|
 | 1 seqid | FASTA sequence id (GFF3-escaped) |
-| 2 source | `tprok` |
+| 2 source | `deeprok` |
 | 3 type | `CDS` |
 | 4–5 start, end | 1-based, inclusive; `end − start + 1` is a multiple of 3; the stop codon is included |
 | 6 score | `conf`, the gene's mean coding probability (0–1) |
@@ -192,7 +215,7 @@ and half the start-ranker training (CPU on every device; ~3 min for K-12).
 
 ## Coming from Prodigal or GeneMarkS-2
 
-| Prodigal | GeneMarkS-2 | tprok |
+| Prodigal | GeneMarkS-2 | deeprok |
 |---|---|---|
 | `-i genome.fna` | `--seq genome.fna` | `-i genome.fna` |
 | `-o out.gff -f gff` | `--output out.gff --format gff` | `-o out.gff3` (GFF3 is the only format) |
@@ -207,7 +230,7 @@ and half the start-ranker training (CPU on every device; ~3 min for K-12).
 ## Reproducibility
 
 The model checkpoint, its training run and the decoding priors are recorded in
-`src/tprok/data/model_card.json` and summarised in every GFF3 header. With the
+`src/deeprok/data/model_card.json` and summarised in every GFF3 header. With the
 same inputs and environment the output is deterministic. Across platforms the
 first pass is identical; the start ranker's training can move a handful of
 starts (on *E. coli* K-12 the macOS arm64 CPU run and the Linux cluster run used
@@ -216,12 +239,12 @@ reference).
 
 ## Development
 
-* `src/tprok/_core/` is **generated**: verbatim copies of the research code
+* `src/deeprok/_core/` is **generated**: verbatim copies of the research code
   (decoder, model, ranker) with package-relative imports. Re-create it with
   `python package/dev/sync_core.py` from the research repository;
   `tests/test_units.py::test_core_in_sync` fails when it is stale.
 * `python package/dev/stage_model.py --checkpoint … --priors … --name … --training-run …`
-  installs a different checkpoint into `src/tprok/data/` and rewrites the model card.
+  installs a different checkpoint into `src/deeprok/data/` and rewrites the model card.
 * Tests: `pytest` (54 tests, ≈ 1 min on CPU; runs the full pipeline on the bundled
   200-kb *E. coli* slice; `tests/test_errors.py` covers malformed input, outputs,
   options, Ctrl-C and broken pipes).

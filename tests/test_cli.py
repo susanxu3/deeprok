@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from tprok.cli import main
-from tprok.writers import CODON_TABLE_11, revcomp
+from deeprok.cli import main
+from deeprok.writers import CODON_TABLE_11, revcomp
 
 DATA = Path(__file__).parent / "data"
 FNA = DATA / "ecoli_k12_200kb.fna.gz"
@@ -60,6 +60,7 @@ def test_meta_mode_matches_expected(tmp_path):
     assert main(["-q", "-p", "meta", "-i", str(FNA), "-o", str(out)]) == 0
     assert _identity(_calls(out), _calls(DATA / "ecoli_k12_200kb.meta.expected.gff3")) >= 0.99
     assert "# mode: meta" in out.read_text()
+    assert "# max gene length: " in out.read_text() and "# network window: 49995 nt" in out.read_text()
 
 
 def test_gff3_is_well_formed(single):
@@ -72,7 +73,7 @@ def test_gff3_is_well_formed(single):
     for f in feats:
         assert len(f) == 9
         seqid, src, typ, s, e, score, strand, phase, attrs = f
-        assert (src, typ, phase) == ("tprok", "CDS", "0")
+        assert (src, typ, phase) == ("deeprok", "CDS", "0")
         assert strand in "+-"
         assert 1 <= int(s) < int(e) <= 200000
         assert (int(e) - int(s) + 1) % 3 == 0
@@ -114,7 +115,7 @@ def test_intermediates_written(single):
 
 def test_stdin_to_stdout_and_clean_stdout():
     raw = gzip.decompress(FNA.read_bytes())
-    r = subprocess.run([sys.executable, "-m", "tprok", "-p", "meta"], input=raw,
+    r = subprocess.run([sys.executable, "-m", "deeprok", "-p", "meta"], input=raw,
                        capture_output=True, check=True)
     out = r.stdout.decode().splitlines()
     assert out[0] == "##gff-version 3"
@@ -124,7 +125,7 @@ def test_stdin_to_stdout_and_clean_stdout():
 
 
 def test_quiet_is_silent():
-    r = subprocess.run([sys.executable, "-m", "tprok", "-q", "-p", "meta", "-i", str(FNA)],
+    r = subprocess.run([sys.executable, "-m", "deeprok", "-q", "-p", "meta", "-i", str(FNA)],
                        capture_output=True, check=True)
     assert r.stderr == b""
 
@@ -160,3 +161,17 @@ def test_bad_input_exits_cleanly(tmp_path):
     dup.write_text(">a\nACGT\n>a\nACGT\n")
     with pytest.raises(SystemExit, match="duplicate"):
         main(["-q", "-i", str(dup)])
+
+
+def test_max_gene_len_truncates_and_is_recorded(tmp_path):
+    """A small cap must shorten long calls, not drop them, and reach the header."""
+    out = tmp_path / "cap.gff3"
+    assert main(["-q", "-p", "meta", "--max-gene-len", "900", "-i", str(FNA), "-o", str(out)]) == 0
+    feats = _features(out)
+    assert feats and all(int(f[4]) - int(f[3]) + 1 <= 900 for f in feats)
+    assert "# max gene length: 900 nt" in out.read_text()
+    # the cap only limits length: every stop called by default is still called
+    base = tmp_path / "base.gff3"
+    main(["-q", "-p", "meta", "-i", str(FNA), "-o", str(base)])
+    stop = lambda f: (f[0], f[4] if f[6] == "+" else f[3], f[6])
+    assert {stop(f) for f in _features(base)} <= {stop(f) for f in feats}

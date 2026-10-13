@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Put a trained checkpoint and its decode priors into ``src/tprok/data/``.
+"""Put a trained checkpoint and its decode priors into ``src/deeprok/data/``.
 
 Keeps only the weights and the architecture keys the loader reads (no optimizer
 state, no training arguments), writes ``model_card.json`` with the provenance
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import torch
 
-DATA = Path(__file__).resolve().parents[1] / "src" / "tprok" / "data"
+DATA = Path(__file__).resolve().parents[1] / "src" / "deeprok" / "data"
 # exactly the keys model_v4.load_prokaryotic_model_v4_from_checkpoint reads, plus the
 # head layout for the record
 KEEP = ("model_state_dict", "cnn_stride", "dilated_branch_channels", "dilated_dilations",

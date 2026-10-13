@@ -35,7 +35,14 @@ TILE_WINDOW = 49995            # 50 kb, multiple of the pool size 3
 PASS1 = dict(min_nt=90, start_emission_scale=50.0, alpha=0.001, max_overlap_depth=50)
 PASS2 = dict(min_nt=90, start_emission_scale=10.0, alpha=0.001, max_overlap_depth=250,
              start_rank_lambda=100.0, start_rank_existence_lambda=50.0)
-MAX_GENE_LEN = 20000
+# The decoder cannot emit a gene longer than this, so it is a hard ceiling, not a
+# prior. Across 944 GTDB genomes (2.99 M CDS) the longest CDS is 119 kb and only
+# 147 exceed 20 kb, but a genome that has one cannot have it called correctly.
+# Raising the cap costs nothing measurable: on the 4 curated genomes 20 kb -> 150 kb
+# left every call bit-identical, and on 3 held-out genomes with 12 genes > 20 kb it
+# changed only those genes (same call count, same runtime). The published runs used
+# 20000; on their genomes the two settings give identical output.
+MAX_GENE_LEN = 125000
 OVERLAP_TAIL_SCALE = 10.0
 RANKER = Namespace(model="cnn", width=24, kernel=7, epochs=40, batch=64, lr=3e-3, wd=1e-3,
                    tau=1.0, patience=6, device="cpu", seed=0, verbose=False)
@@ -78,7 +85,7 @@ def _log_default(msg: str) -> None:
 
 
 def data_path(name: str):
-    return resources.files("tprok") / "data" / name
+    return resources.files("deeprok") / "data" / name
 
 
 def model_card() -> dict:
@@ -185,7 +192,7 @@ def read_fasta(path: Path, label: Optional[str] = None, log: Callable = _log_def
     if kind == "plain" and not last.endswith("\n"):
         # A plain-text FASTA cut short is otherwise indistinguishable from a complete
         # one; a missing final newline is the usual trace of an interrupted copy.
-        log(f"tprok: warning: {label} does not end with a newline; if it was downloaded "
+        log(f"deeprok: warning: {label} does not end with a newline; if it was downloaded "
             "or copied, check that it is complete")
     seqs = {}
     for n, parts in out.items():
@@ -194,13 +201,13 @@ def read_fasta(path: Path, label: Optional[str] = None, log: Callable = _log_def
         else:
             empty.append(n)
     if empty:
-        log(f"tprok: warning: skipped {len(empty)} record(s) with no sequence: "
+        log(f"deeprok: warning: skipped {len(empty)} record(s) with no sequence: "
             + ", ".join(empty[:5]) + (" ..." if len(empty) > 5 else ""))
     if not seqs:
         raise InputError(f"no sequences found in {label}")
     acgt = sum(len(s) - s.count("N") - sum(s.count(c) for c in "RYSWKMBDHV") for s in seqs.values())
     if acgt == 0:
-        log(f"tprok: warning: {label} contains no A/C/G/T (all N or ambiguity codes); "
+        log(f"deeprok: warning: {label} contains no A/C/G/T (all N or ambiguity codes); "
             "no genes can be called")
     return seqs
 
@@ -220,7 +227,7 @@ def _bad_char_reason(label: str, lineno: int, name: str, s: str) -> str:
     if any(c.isdigit() for c in bad):
         hint = "digits in the sequence: GenBank/EMBL-style numbered lines?"
     elif set(bad) & _AA_ONLY:
-        hint = "amino-acid letters: this looks like a protein FASTA; tprok needs nucleotides"
+        hint = "amino-acid letters: this looks like a protein FASTA; deeprok needs nucleotides"
     elif "U" in bad:
         hint = "U: RNA sequence? convert U to T"
     else:
@@ -262,14 +269,14 @@ def predict_probs(contigs: Dict[str, str], *, device, batch_size: int,
 
 
 def _decode(contigs, probs, stats, overlap_probs, *, min_nt, start_emission_scale, alpha,
-            max_overlap_depth, workers, rank=None, start_rank_lambda=0.0,
+            max_overlap_depth, workers, max_gene_len=MAX_GENE_LEN, rank=None, start_rank_lambda=0.0,
             start_rank_existence_lambda=None) -> List[dict]:
     """One segmental decode over all contigs (decode_genome_from_nn_probs, in memory)."""
     from ._core.decode_from_nn_probs import build_length_model
     from ._core.hmm_duration_decode import (annotate_strategy_a_segmental,
                                             default_start_type_bonus, segmental_overlap_range)
     length_model = build_length_model(stats, overlap_probs, min_gene_len=min_nt,
-                                      max_gene_len=MAX_GENE_LEN,
+                                      max_gene_len=max_gene_len,
                                       max_overlap_depth=max_overlap_depth,
                                       overlap_tail_scale=OVERLAP_TAIL_SCALE)
     start_bonus = default_start_type_bonus(stats)
@@ -364,6 +371,7 @@ def _to_gene(g: dict, P: np.ndarray) -> Gene:
 
 def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads: int = 4,
              batch_size: Optional[int] = None, window: int = TILE_WINDOW,
+             max_gene_len: int = MAX_GENE_LEN,
              workers: int = 2, keep_dir: Optional[Path] = None,
              log: Callable = _log_default, input_label: Optional[str] = None) -> Result:
     """Predict protein-coding genes in every sequence of ``fasta``."""
@@ -377,7 +385,7 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
     t_all = time.time()
     contigs = read_fasta(Path(fasta), label=input_label, log=log)
     total = sum(map(len, contigs.values()))
-    log(f"tprok: {len(contigs)} sequence(s), {total:,} bp")
+    log(f"deeprok: {len(contigs)} sequence(s), {total:,} bp")
     dev = pick_device(device)
     bs = batch_size or (32 if dev.type == "cuda" else 4)
     log(f"  device   {dev} (batch {bs}, {threads} threads)")
@@ -387,7 +395,8 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
     overlap_probs = load_overlap_transition_probs(None)
 
     t0 = time.time()
-    pass1 = _decode(contigs, probs, stats, overlap_probs, workers=workers, **PASS1)
+    pass1 = _decode(contigs, probs, stats, overlap_probs, workers=workers,
+                    max_gene_len=max_gene_len, **PASS1)
     log(f"  pass 1   {len(pass1)} genes ({time.time() - t0:.0f} s)")
     if keep_dir is not None:
         _keep(keep_dir, contigs, probs, pass1)
@@ -407,7 +416,8 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
             else:
                 rank = ranker_scores(contigs, ck)
                 t0 = time.time()
-                genes = _decode(contigs, probs, stats, overlap_probs, workers=workers, rank=rank, **PASS2)
+                genes = _decode(contigs, probs, stats, overlap_probs, workers=workers, rank=rank,
+                                max_gene_len=max_gene_len, **PASS2)
                 n_before = len(genes)
                 genes = drop_nested_antisense(genes)
                 log(f"  pass 2   {n_before} genes, {n_before - len(genes)} nested antisense removed "
@@ -416,7 +426,7 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
     order = {sid: i for i, sid in enumerate(contigs)}
     genes = sorted(genes, key=lambda g: (order[g["seqid"]], g["start"], g["end"], g["strand"]))
     out = [_to_gene(g, probs[g["seqid"]]) for g in genes]
-    log(f"tprok: {len(out)} genes in {time.time() - t_all:.0f} s (mode {mode_used})")
+    log(f"deeprok: {len(out)} genes in {time.time() - t_all:.0f} s (mode {mode_used})")
     return Result(genes=out, contigs=contigs, mode_used=mode_used,
                   info={"device": str(dev), "ranker_train_orfs": n_train, "total_bp": total})
 
@@ -432,4 +442,4 @@ def _keep(d: Path, contigs, probs, pass1) -> None:
         np.save(pd / fn, p)
         seqs[name] = {"file": fn, "length": int(p.shape[0]), "shape": list(p.shape), "dtype": "float32"}
     (pd / "nn_probs_manifest.json").write_text(json.dumps({"version": 1, "sequences": seqs}, indent=2))
-    write_gff3(str(d / "pass1.gff3"), pass1, source="tprok_pass1")
+    write_gff3(str(d / "pass1.gff3"), pass1, source="deeprok_pass1")

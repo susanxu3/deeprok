@@ -1,6 +1,6 @@
 """Error handling: malformed / truncated input, unwritable output, bad options.
 
-Every case must end in a one-line ``tprok: ...`` message (no traceback) and,
+Every case must end in a one-line ``deeprok: ...`` message (no traceback) and,
 where possible, before the network runs. Most cases fail during input checks,
 so this module is fast; the few that run the pipeline use ``-p meta`` on 30 kb.
 """
@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from tprok.cli import main
-from tprok.pipeline import InputError, read_fasta
+from deeprok.cli import main
+from deeprok.pipeline import InputError, read_fasta
 
 DATA = Path(__file__).parent / "data"
 FNA = DATA / "ecoli_k12_200kb.fna.gz"
@@ -178,6 +178,7 @@ def test_special_output_files(good):
     (["--threads", "0"], "must be at least 1"),
     (["--batch-size", "x"], "expected a positive integer"),
     (["--window", "10000"], ""),
+    (["--max-gene-len", "200"], "at least 300"),
     (["-p", "fast"], ""),
 ])
 def test_bad_options(good, argv, match, capsys):
@@ -197,7 +198,7 @@ def test_unavailable_device(good):
 # ---- process-level behaviour ---------------------------------------------
 
 def _cli(*argv, **kw):
-    return subprocess.run([sys.executable, "-m", "tprok", *map(str, argv)], capture_output=True, **kw)
+    return subprocess.run([sys.executable, "-m", "deeprok", *map(str, argv)], capture_output=True, **kw)
 
 
 def test_no_traceback_on_stdin_errors(good):
@@ -215,10 +216,10 @@ def test_gzip_on_stdin(good):
 
 
 def test_broken_pipe_is_quiet(good):
-    p = subprocess.Popen([sys.executable, "-m", "tprok", "-q", "-p", "meta", "-i", str(good)],
+    p = subprocess.Popen([sys.executable, "-m", "deeprok", "-q", "-p", "meta", "-i", str(good)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p.stdout.readline()
-    p.stdout.close()                         # like `tprok ... | head -1`
+    p.stdout.close()                         # like `deeprok ... | head -1`
     err = p.stderr.read()
     assert p.wait(timeout=120) == 0 and b"Traceback" not in err and b"Exception" not in err
 
@@ -226,7 +227,7 @@ def test_broken_pipe_is_quiet(good):
 def test_interrupt_exits_130_and_keeps_old_output(tmp_path):
     out = tmp_path / "o.gff3"
     out.write_text("OLD\n")
-    p = subprocess.Popen([sys.executable, "-m", "tprok", "-i", str(FNA), "-o", str(out)],
+    p = subprocess.Popen([sys.executable, "-m", "deeprok", "-i", str(FNA), "-o", str(out)],
                          stderr=subprocess.PIPE)
     # wait until the network is running, then Ctrl-C
     deadline = time.time() + 60
@@ -236,7 +237,7 @@ def test_interrupt_exits_130_and_keeps_old_output(tmp_path):
     p.send_signal(signal.SIGINT)
     err = buf + p.stderr.read()
     assert p.wait(timeout=60) == 130
-    assert err.strip().endswith(b"tprok: interrupted") and b"Traceback" not in err
+    assert err.strip().endswith(b"deeprok: interrupted") and b"Traceback" not in err
     assert out.read_text() == "OLD\n"
     assert not [x for x in tmp_path.iterdir() if x.name.endswith(".tmp")]
 

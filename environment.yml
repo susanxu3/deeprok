@@ -1,11 +1,11 @@
-# Exact versions tprok 0.1.0 was tested with (CPU). Create and install with:
+# Exact versions deeprok 0.1.0 was tested with (CPU). Create and install with:
 #   conda env create -f environment.yml
-#   conda activate tprok
+#   conda activate deeprok
 #   pip install --no-deps .
 # For a bit-for-bit reproduction on the same platform use the explicit lock file
-# instead: conda create -n tprok --file conda/lock/<linux-64|osx-arm64>.txt
+# instead: conda create -n deeprok --file conda/lock/<linux-64|osx-arm64>.txt
 # GPU: replace "pytorch=2.14.1=cpu*" with a CUDA build of the same version.
-name: tprok
+name: deeprok
 channels:
   - conda-forge
   - nodefaults
