@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,8 @@ dynamic = ["version"]
 description = "Neural prokaryotic gene finder: CNN+BiLSTM base-level predictions decoded by a segmental ORF HMM"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
-license = { text = "TBD" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Qiaohan Xu" }]
 keywords = ["gene prediction", "prokaryote", "genome annotation", "deep learning"]
 classifiers = [
