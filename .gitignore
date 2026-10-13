@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.eggs/
+*.tmp
+.DS_Store
+# local outputs
+*.gff3
+!tests/data/*.gff3
+*.faa

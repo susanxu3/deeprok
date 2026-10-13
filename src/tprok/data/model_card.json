@@ -1,0 +1,10 @@
+{
+  "name": "prok666_keephyp",
+  "sha256": "e608f60a196535b47d904ff62c12241199484c0c1d3a843f90e49097d712ee7a",
+  "source_checkpoint": "training_runs/v4_variant_c_prok_joint642_keephyp_cnn3_lstm1/best.pt",
+  "source_checkpoint_sha256": "afcc8d571b0a86089933584618a2f4045a342a4fbc6bd66276561479abc204c3",
+  "training_run": "run 2: polaris job 26153, best epoch 13 (val_loss 0.5659)",
+  "training_data": "666 GTDB r232 family representatives (620 bacteria, 46 archaea)",
+  "priors": "gtdb_prok_keephyp_train666_pooled.json",
+  "n_parameters": 1145313
+}

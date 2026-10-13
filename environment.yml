@@ -1,0 +1,17 @@
+# Exact versions tprok 0.1.0 was tested with (CPU). Create and install with:
+#   conda env create -f environment.yml
+#   conda activate tprok
+#   pip install --no-deps .
+# For a bit-for-bit reproduction on the same platform use the explicit lock file
+# instead: conda create -n tprok --file conda/lock/<linux-64|osx-arm64>.txt
+# GPU: replace "pytorch=2.14.1=cpu*" with a CUDA build of the same version.
+name: tprok
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pytorch=2.14.1=cpu*
+  - numpy=2.5.4
+  - pip
+  - pytest=9.1.1

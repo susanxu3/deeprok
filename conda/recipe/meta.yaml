@@ -1,0 +1,59 @@
+# conda-build / bioconda recipe. For a local build from this checkout:
+#   conda build conda/recipe -c conda-forge
+# For bioconda, replace `source: path:` with the release tarball url + sha256.
+{% set name = "tprok" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  number: 0
+  noarch: python
+  script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
+  entry_points:
+    - tprok = tprok.cli:main
+  run_exports:
+    - {{ pin_subpackage(name, max_pin="x.x") }}
+
+requirements:
+  host:
+    - python >=3.10,<3.14
+    - pip
+    - setuptools >=68
+    - wheel
+  run:
+    - python >=3.10,<3.14
+    - numpy >=1.24,<3
+    - pytorch >=2.1,<3
+
+test:
+  imports:
+    - tprok
+    - tprok._core.hmm_duration_decode
+  source_files:
+    - tests/data/ecoli_k12_200kb.fna.gz
+  commands:
+    - tprok --version
+    - tprok --help
+    - tprok -q -p meta -i tests/data/ecoli_k12_200kb.fna.gz -o test.gff3 -a test.faa
+    - test -s test.gff3 && test -s test.faa
+
+about:
+  home: https://github.com/TBD/tprok
+  summary: Neural prokaryotic gene finder (CNN+BiLSTM + segmental ORF HMM)
+  description: |
+    Predicts protein-coding genes in bacterial and archaeal genomes. A CNN+BiLSTM
+    trained on 666 GTDB family representatives scores every base; a segmental ORF
+    HMM decodes complete genes; a start-site ranker self-trained on the input genome
+    refines translation starts. Writes GFF3, protein and CDS FASTA.
+  license: TBD
+  # license_file: LICENSE   (add once the license is chosen)
+
+extra:
+  recipe-maintainers:
+    - TBD
