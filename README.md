@@ -38,12 +38,13 @@ On a network that blocks `anaconda.org` (Mass General Brigham does, for licensin
 reasons — see MGB KB0043690), point conda at the mirror instead:
 
 ```bash
-conda config --set channel_alias https://anaconda.mgb.org/   # for environment.yml
-sed -i '' 's#conda.anaconda.org#anaconda.mgb.org#' conda/lock/*.txt   # for the lock files
+conda config --set channel_alias https://anaconda.mgb.org/        # for environment.yml
+sed -i.bak 's#conda.anaconda.org#anaconda.mgb.org#' conda/lock/*.txt   # for the lock files
 ```
 
 `channel_alias` does not rewrite the lock files, because those carry full URLs —
-hence the second line. The mirror's certificate is valid, so `ssl_verify: false`
+hence the second line (`sed -i.bak` is written this way so it works with both GNU
+and BSD/macOS sed). The mirror's certificate is valid, so `ssl_verify: false`
 (which that article suggests) is not needed. pip and PyPI are unaffected.
 
 **GPU**: optional; only the network step uses it, the rest of the pipeline runs on
