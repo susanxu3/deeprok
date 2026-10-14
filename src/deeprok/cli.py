@@ -81,16 +81,29 @@ def _stdout_to_stderr(silence: bool = False):
     The decoder code prints diagnostics with print(), including from its worker
     processes, which inherit fd 1; redirecting sys.stdout alone would not catch
     those, and any of it on stdout would corrupt a GFF written to stdout.
+
+    fd 1 is a pipe or a file here, not a tty, so sys.stdout would be block
+    buffered and the decoder's lines would reach the terminal long after the
+    progress lines they belong under (a pass-1 diagnostic printing below the
+    "pass 2" heading). Line buffering while the redirect is in place keeps the
+    two streams in order.
     """
     sys.stdout.flush()
     saved = os.dup(1)
     target = os.open(os.devnull, os.O_WRONLY) if silence else os.dup(2)
     os.dup2(target, 1)
     os.close(target)
+    was_line_buffered = sys.stdout.line_buffering
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):       # not a TextIOWrapper
+        was_line_buffered = None
     try:
         yield
     finally:
         sys.stdout.flush()
+        if was_line_buffered is not None:
+            sys.stdout.reconfigure(line_buffering=was_line_buffered)
         os.dup2(saved, 1)
         os.close(saved)
 

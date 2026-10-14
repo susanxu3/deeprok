@@ -1060,11 +1060,11 @@ def annotate_strategy_a_segmental(
         conflict_resolution=conflict_resolution,
     )
     print(
-        f"    prodigal filter: +{stats['n_in_fwd']}/-{stats['n_in_rev']} -> "
+        f"    overlap filter: +{stats['n_in_fwd']}/-{stats['n_in_rev']} -> "
         f"+{stats['n_out_fwd']}/-{stats['n_out_rev']}  "
-        f"(drop same: {stats['drop_same_strand']}, "
-        f"opp-start: {stats['drop_opp_start_overlap']}, "
-        f"opp>{opposite_max_ov}: {stats['drop_opp_gt_max']})"
+        f"(dropped: same-strand >{same_strand_max_ov} nt {stats['drop_same_strand']}, "
+        f"opposite-strand start collision {stats['drop_opp_start_overlap']}, "
+        f"opposite-strand >{opposite_max_ov} nt {stats['drop_opp_gt_max']})"
     )
     return kept_p + kept_m
 

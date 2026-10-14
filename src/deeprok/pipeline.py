@@ -395,6 +395,7 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
     overlap_probs = load_overlap_transition_probs(None)
 
     t0 = time.time()
+    log(f"  pass 1   decoding, no ranker; overlaps up to {PASS1['max_overlap_depth']} nt")
     pass1 = _decode(contigs, probs, stats, overlap_probs, workers=workers,
                     max_gene_len=max_gene_len, **PASS1)
     log(f"  pass 1   {len(pass1)} genes ({time.time() - t0:.0f} s)")
@@ -416,12 +417,15 @@ def annotate(fasta: Path, *, mode: str = "single", device: str = "auto", threads
             else:
                 rank = ranker_scores(contigs, ck)
                 t0 = time.time()
+                log(f"  pass 2   decoding with ranker; overlaps up to "
+                    f"{PASS2['max_overlap_depth']} nt")
                 genes = _decode(contigs, probs, stats, overlap_probs, workers=workers, rank=rank,
                                 max_gene_len=max_gene_len, **PASS2)
                 n_before = len(genes)
                 genes = drop_nested_antisense(genes)
-                log(f"  pass 2   {n_before} genes, {n_before - len(genes)} nested antisense removed "
-                    f"-> {len(genes)} ({time.time() - t0:.0f} s)")
+                log(f"  pass 2   {n_before} genes, {n_before - len(genes)} dropped for lying "
+                    f"inside a longer gene on the opposite strand -> {len(genes)} "
+                    f"({time.time() - t0:.0f} s)")
 
     order = {sid: i for i, sid in enumerate(contigs)}
     genes = sorted(genes, key=lambda g: (order[g["seqid"]], g["start"], g["end"], g["strand"]))
