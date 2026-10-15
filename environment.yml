@@ -1,4 +1,4 @@
-# Exact versions deeprok 0.1.0 was tested with. Create and install with:
+# Exact versions deeprok 0.1.1 was tested with. Create and install with:
 #   conda env create -f environment.yml
 #   conda activate deeprok
 #   pip install --no-deps .
