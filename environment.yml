@@ -4,7 +4,9 @@
 #   pip install --no-deps .
 # For a bit-for-bit reproduction on the same platform use the explicit lock file
 # instead: conda create -n deeprok --file conda/lock/<linux-64|osx-arm64>.txt
-# GPU: replace "pytorch=2.14.1=cpu*" with a CUDA build of the same version.
+# This file pins the CPU build of PyTorch, so --device cuda will NOT work in it.
+# For an NVIDIA GPU use environment-nvidia.yml instead (Linux only); on Apple
+# silicon this file is correct and --device mps uses the Mac GPU.
 name: deeprok
 channels:
   - conda-forge

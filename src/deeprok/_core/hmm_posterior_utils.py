@@ -435,10 +435,13 @@ def tile_predict_v4_distribution(
     model.eval()
     win_end = window - 1
     n_batches = (len(starts) + batch_size - 1) // batch_size
-    tiling = "full_contig" if full_sequence else f"window={window} step={step}"
+    tiling = (
+        "in one pass (no tiling)" if full_sequence
+        else f"in {len(starts)} tiles of {window:,} nt (step {step:,})"
+    )
     print(
-        f"tile_predict_v4_distribution: {tiling} len={l_orig:,} "
-        f"windows={len(starts)} batches={n_batches} batch_size={batch_size} device={device}",
+        f"    scoring {l_orig:,} bp {tiling}, "
+        f"{n_batches} batches of {batch_size}, device {device}",
         flush=True,
     )
     for i in range(0, len(starts), batch_size):
@@ -452,8 +455,8 @@ def tile_predict_v4_distribution(
         xt = torch.from_numpy(np.stack(chunks).astype(np.float32)).to(device)
         if i == 0 or (i // batch_size) % 50 == 0:
             print(
-                f"  nn batch {i // batch_size + 1}/{n_batches} "
-                f"starts={batch_starts[0]:,}..{batch_starts[-1]:,}",
+                f"      batch {i // batch_size + 1}/{n_batches}, "
+                f"positions {batch_starts[0]:,}-{batch_starts[-1]:,}",
                 flush=True,
             )
         out = _v4_model_forward(model, xt)

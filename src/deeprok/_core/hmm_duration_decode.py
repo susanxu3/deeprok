@@ -1091,7 +1091,7 @@ def _longest_path(
         and getattr(scorer, "segmental_overlap_score", "legacy") == "empirical_multihot"
         and _can_use_empirical_multihot_fast(scorer, length_model)
     ):
-        print(f"    empirical_multihot fast DP: candidates={len(candidates)}")
+        print(f"    choosing the best gene path through {len(candidates):,} candidate ORFs")
         return _longest_path_empirical_multihot_fast(candidates, scorer, length_model, allowed_overlaps)
     if duration_lambda <= 0.0 and _can_use_fast_viterbi_anchor(scorer):
         return _longest_path_viterbi_anchor_fast(candidates, scorer, allowed_overlaps)

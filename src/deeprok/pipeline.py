@@ -95,8 +95,19 @@ def model_card() -> dict:
 def pick_device(requested: str = "auto"):
     import torch
     if requested == "cuda" and not torch.cuda.is_available():
-        raise ValueError("--device cuda: no CUDA GPU available to this PyTorch build "
-                         f"(torch {torch.__version__}); use --device cpu")
+        # Two different problems, two different fixes: a CPU-only build of torch
+        # (what environment.yml installs) can never see a GPU, while a CUDA build
+        # with no visible device is a driver or allocation problem.
+        if getattr(torch.version, "cuda", None) is None:
+            raise ValueError(
+                f"--device cuda: this is a CPU-only build of PyTorch (torch {torch.__version__}), "
+                "which cannot use a GPU. environment.yml pins that build; create the "
+                "environment from environment-nvidia.yml instead, or install a CUDA build "
+                "of torch into this one. Use --device cpu to run without a GPU")
+        raise ValueError(
+            f"--device cuda: PyTorch {torch.__version__} is built against CUDA "
+            f"{torch.version.cuda} but no GPU is visible to it (check nvidia-smi and "
+            "CUDA_VISIBLE_DEVICES); use --device cpu to run without a GPU")
     if requested == "mps" and not (getattr(torch.backends, "mps", None)
                                    and torch.backends.mps.is_available()):
         raise ValueError("--device mps: Apple-silicon GPU (MPS) not available; use --device cpu")
@@ -331,12 +342,16 @@ def train_ranker(contigs, probs, pass1: List[dict], ckpt_out: Path, log=_log_def
         log(f"  ranker   only {tr.size} confident pass-1 genes (< {MIN_RANKER_TRAIN_ORFS}); not trained")
         return None
     t0 = time.time()
+    # Training is the longest silent step in the run (minutes on a whole genome,
+    # CPU on every device), so say what is happening before starting it.
+    log(f"  ranker   training the start-site ranker on {tr.size} confident pass-1 "
+        f"genes (CPU; the slowest step)")
     model, inner, eps = R.train_fold(cs, tr, None, RANKER, RANKER.seed * 100)
     torch.save({"model": RANKER.model, "width": RANKER.width, "kernel": RANKER.kernel,
                 "state": model.state_dict(), "up_nt": R.UP_NT, "down_nt": R.DOWN_NT,
                 "fold": 0, "inner_top1": inner}, ckpt_out)
-    log(f"  ranker   trained on {tr.size} pass-1 genes, {eps} epochs, "
-        f"held-out top-1 {inner:.3f} ({time.time() - t0:.0f} s)")
+    log(f"  ranker   done: {eps} epochs, held-out top-1 {inner:.3f} "
+        f"({time.time() - t0:.0f} s)")
     return int(tr.size)
 
 

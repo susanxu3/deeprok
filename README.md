@@ -2,29 +2,76 @@
 
 A neural gene finder for bacterial and archaeal genomes.
 
-A CNN + BiLSTM network scores every base of the genome (coding frame, start
-codon, stop codon, intergenic). A segmental ORF HMM turns those scores into
-complete genes. A start-site ranker is then trained on the input genome's own
-first-pass calls and used to refine the translation starts — no reference
-annotation and no internet connection needed.
-
 ```bash
-deeprok -i genome.fna -o genes.gff3 -a proteins.faa
+deeprok -i genome.fna -o genes.gff3 
 ```
+
+## Introduction
+
+deeprok predicts protein-coding genes in bacterial and archaeal genomes
+*ab initio* — from sequence alone, with no reference annotation, no homology
+search and no network access. One network, trained on 666 family representatives
+spanning the bacterial and archaeal tree, is applied unchanged to every genome.
+Use it to annotate new isolate assemblies, complete or draft; genomes from
+lineages with no annotated relative, where homology transfer is uninformative;
+and large genome sets that need one consistent gene set. A second pass learns
+what translation starts look like in the genome being annotated and refines them,
+which is where deeprok gains most against existing callers on manually curated
+reference genomes. A 4.6 Mb genome takes ~6 min on four laptop CPU threads,
+under 5 with the Mac GPU, and ~10 s for the network step on a CUDA GPU.
+
+## How it works
+
+A neural network (CNN + BiLSTM) reads the genome and predicts, for every base,
+whether it is protein-coding and in which reading frame, and whether it is part
+of a start or a stop codon. deeprok then enumerates every open reading frame in
+the sequence and scores each one from those per-base predictions, using an HMM
+that also scores the gaps and overlaps between neighbouring ORFs. The genes it
+reports are the highest-scoring combination of non-conflicting ORFs across the
+whole sequence, rather than each ORF judged on its own.
+
+Picking the right start codon is the hardest part, so a second pass handles it
+separately. deeprok takes the genes it was most confident about in the first
+pass and uses them as training examples for a second, smaller CNN, which learns
+what a real translation start looks like *in this particular genome* — the
+sequence around it, including its ribosome binding site. That ranker then scores
+every alternative ATG, GTG and TTG that shares a stop codon with each gene, and
+the genome is decoded a second time using those scores. Because the training
+examples come from the genome being annotated, nothing external is needed.
 
 ## Install
 
 ```bash
+conda install -c conda-forge -c bioconda deeprok
+```
+
+> **Not published yet** — the bioconda recipe is in `conda/recipe/meta.yaml` and
+> has not been submitted. Until it is merged, use the from-source install below
+> and ignore this block.
+
+The model weights (4.6 MB) ship inside the package; nothing is downloaded at run
+time.
+
+### From source
+
+Pick the environment file that matches the machine you are installing on — a
+one-time choice per machine, not a per-run one:
+
+| Machine | File |
+|---|---|
+| Linux with an NVIDIA GPU | `environment-nvidia.yml` |
+| Everything else — macOS (Intel or Apple silicon), Linux without an NVIDIA GPU | `environment.yml` |
+
+```bash
 git clone <repo> && cd deeprok
-conda env create -f environment.yml
-conda activate deeprok
+conda env create -f environment.yml      # or environment-nvidia.yml
+conda activate deeprok                   # or deeprok-nvidia
 pip install --no-deps .
 deeprok --version
 ```
 
-The model weights (4.6 MB) ship inside the package; nothing is downloaded at run
-time. Lock files, the conda recipe, pip-only installs, GPU setup and networks
-that block `anaconda.org` are covered in **[docs/install.md](docs/install.md)**.
+Lock files, pip-only installs and GPU details are in
+**[docs/install.md](docs/install.md)**.
 
 ## Usage
 
@@ -59,8 +106,7 @@ for short sequences, lone plasmids, or mixed metagenomic bins. Inputs under 20 k
 fall back to `meta` automatically.
 
 Overlapping genes, `--max-gene-len` and `--window` are explained in
-**[docs/options.md](docs/options.md)**. Neither of the two numeric options
-normally needs changing.
+**[docs/options.md](docs/options.md)**. 
 
 ## Output
 
@@ -95,19 +141,7 @@ the decoder then dominates, at up to ~5 GB for a 9-Mb genome. On CPU about a
 third of the time is the network and half the start-ranker training (CPU on
 every device; ~3 min for K-12).
 
-## Coming from Prodigal or GeneMarkS-2
 
-| Prodigal | GeneMarkS-2 | deeprok |
-|---|---|---|
-| `-i genome.fna` | `--seq genome.fna` | `-i genome.fna` |
-| `-o out.gff -f gff` | `--output out.gff --format gff` | `-o out.gff3` (GFF3 is the only format) |
-| `-a proteins.faa` | `--faa proteins.faa` | `-a proteins.faa` |
-| `-d genes.fna` | `--fnn genes.fna` | `-d genes.fna` |
-| `-p single` / `-p meta` | — | `-p single` / `-p meta` |
-| `-q` | — | `-q` |
-| `-g 11` | `--gcode 11` | table 11 only |
-| `-c` (closed ends) | — | always closed: only complete genes |
-| — | `--genome-type auto` | not needed: one model for bacteria and archaea |
 
 ## Reproducibility
 
@@ -118,17 +152,7 @@ first pass is identical; the start ranker's training can move a handful of start
 (on *E. coli* K-12 the macOS arm64 CPU run and the Linux cluster run used for the
 paper share 4,233 of ~4,250 calls; 706 vs 705 errors against the reference).
 
-## Development
 
-* `src/deeprok/_core/` is **generated**: verbatim copies of the research code
-  (decoder, model, ranker) with package-relative imports. Re-create it with
-  `python package/dev/sync_core.py` from the research repository;
-  `tests/test_units.py::test_core_in_sync` fails when it is stale.
-* `python package/dev/stage_model.py --checkpoint … --priors … --name … --training-run …`
-  installs a different checkpoint into `src/deeprok/data/` and rewrites the model card.
-* Tests: `pytest` (56 tests, ≈ 2 min on CPU; runs the full pipeline on the bundled
-  200-kb *E. coli* slice; `tests/test_errors.py` covers malformed input, outputs,
-  options, Ctrl-C and broken pipes).
 
 ## Citation
 

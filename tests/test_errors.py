@@ -192,7 +192,9 @@ def test_unavailable_device(good):
     import torch
     if torch.cuda.is_available():
         pytest.skip("CUDA present")
-    _fails(["-i", good, "--device", "cuda"], "no CUDA GPU available")
+    # Two messages, depending on whether torch itself is a CPU-only build or a
+    # CUDA build that sees no device; both end with the same advice.
+    _fails(["-i", good, "--device", "cuda"], "--device cpu to run without a GPU")
 
 
 # ---- process-level behaviour ---------------------------------------------
@@ -232,7 +234,8 @@ def test_interrupt_exits_130_and_keeps_old_output(tmp_path):
     # wait until the network is running, then Ctrl-C
     deadline = time.time() + 60
     buf = b""
-    while b"nn batch" not in buf and time.time() < deadline:
+    # sentinel: the per-batch progress line printed by the network step
+    while b", positions " not in buf and time.time() < deadline:
         buf += p.stderr.read1(4096)
     p.send_signal(signal.SIGINT)
     err = buf + p.stderr.read()
