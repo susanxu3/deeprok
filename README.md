@@ -1,6 +1,4 @@
-# deeprok
-
-A neural gene finder for bacterial and archaeal genomes.
+# deeprok - a neural gene finder for bacterial and archaeal genomes.
 
 ```bash
 deeprok -i genome.fna -o genes.gff3 
@@ -9,15 +7,14 @@ deeprok -i genome.fna -o genes.gff3
 ## Introduction
 
 deeprok predicts protein-coding genes in bacterial and archaeal genomes
-*ab initio* — from sequence alone, with no reference annotation, no homology
-search and no network access. One network, trained on 666 family representatives
-spanning the bacterial and archaeal tree, is applied unchanged to every genome.
-Use it to annotate new isolate assemblies, complete or draft; genomes from
-lineages with no annotated relative, where homology transfer is uninformative;
-and large genome sets that need one consistent gene set. A second pass learns
-what translation starts look like in the genome being annotated and refines them,
-which is where deeprok gains most against existing callers on manually curated
-reference genomes. A 4.6 Mb genome takes ~6 min on four laptop CPU threads,
+*ab initio* — from sequence alone, with no reference annotation and no homology
+search. deeprok is trained on 666 diverse family representatives
+spanning the bacterial and archaeal tree.
+
+Use deeprok to annotate new isolate assemblies, complete or draft. Compared to
+other gene prediction methods, deeprok can
+output fewer false positives on diverse prokaryotic clades through a two-pass neural approach. 
+A 4.6 Mb genome takes ~6 min on four laptop CPU threads,
 under 5 with the Mac GPU, and ~10 s for the network step on a CUDA GPU.
 
 ## How it works
