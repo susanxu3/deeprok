@@ -96,14 +96,14 @@ def pick_device(requested: str = "auto"):
     import torch
     if requested == "cuda" and not torch.cuda.is_available():
         # Two different problems, two different fixes: a CPU-only build of torch
-        # (what environment.yml installs) can never see a GPU, while a CUDA build
-        # with no visible device is a driver or allocation problem.
+        # can never see a GPU, while a CUDA build with no visible device is a
+        # driver or allocation problem.
         if getattr(torch.version, "cuda", None) is None:
             raise ValueError(
                 f"--device cuda: this is a CPU-only build of PyTorch (torch {torch.__version__}), "
-                "which cannot use a GPU. environment.yml pins that build; create the "
-                "environment from environment-nvidia.yml instead, or install a CUDA build "
-                "of torch into this one. Use --device cpu to run without a GPU")
+                "which cannot use a GPU. Install a CUDA build into this environment "
+                "(conda install 'pytorch=*=cuda*'), or use "
+                "--device cpu to run without a GPU")
         raise ValueError(
             f"--device cuda: PyTorch {torch.__version__} is built against CUDA "
             f"{torch.version.cuda} but no GPU is visible to it (check nvidia-smi and "

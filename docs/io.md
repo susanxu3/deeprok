@@ -90,7 +90,7 @@ Input is checked before the network runs, and every problem ends with a one-line
 | other non-IUPAC characters (`-`, `U`, `*`, non-ASCII) | `line N, sequence 'id': invalid character(s) …` |
 | empty file, headers only, empty or duplicate ids | `no sequences found` / `duplicate sequence id` |
 | missing / unreadable input; output directory missing or not writable; `-o` = input | named in the message |
-| `--device cuda` in a CPU-only PyTorch build (what `environment.yml` installs) | `this is a CPU-only build of PyTorch …; create the environment from environment-nvidia.yml instead` |
+| `--device cuda` in a CPU-only PyTorch build | `this is a CPU-only build of PyTorch …; install a CUDA build into this environment …` |
 | `--device cuda` with a CUDA build but no visible GPU | `built against CUDA … but no GPU is visible to it (check nvidia-smi …)` |
 
 A plain-text FASTA cut short cannot be told from a complete one; deeprok warns

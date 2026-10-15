@@ -45,30 +45,25 @@ examples come from the genome being annotated, nothing external is needed.
 conda install -c conda-forge -c bioconda deeprok
 ```
 
-> **Not published yet** — the bioconda recipe is in `conda/recipe/meta.yaml` and
-> has not been submitted. Until it is merged, use the from-source install below
-> and ignore this block.
+> **Not published yet** — the bioconda recipe is under review
+> ([bioconda-recipes#70340](https://github.com/bioconda/bioconda-recipes/pull/70340)).
+> Until it is merged, use the from-source install below and ignore this block.
 
 The model weights (4.6 MB) ship inside the package; nothing is downloaded at run
 time.
 
 ### From source
 
-Pick the environment file that matches the machine you are installing on — a
-one-time choice per machine, not a per-run one:
-
-| Machine | File |
-|---|---|
-| Linux with an NVIDIA GPU | `environment-nvidia.yml` |
-| Everything else — macOS (Intel or Apple silicon), Linux without an NVIDIA GPU | `environment.yml` |
-
 ```bash
 git clone <repo> && cd deeprok
-conda env create -f environment.yml      # or environment-nvidia.yml
-conda activate deeprok                   # or deeprok-nvidia
+conda env create -f environment.yml
+conda activate deeprok
 pip install --no-deps .
 deeprok --version
 ```
+
+The same file works everywhere: conda installs a CUDA build of PyTorch where it
+sees an NVIDIA driver and a CPU build otherwise.
 
 Lock files, pip-only installs and GPU details are in
 **[docs/install.md](docs/install.md)**.
