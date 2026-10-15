@@ -98,7 +98,7 @@ for short sequences, lone plasmids, or mixed metagenomic bins. Inputs under 20 k
 fall back to `meta` automatically.
 
 Overlapping genes, `--max-gene-len` and `--window` are explained in
-**[docs/options.md](docs/options.md)**. 
+**[docs/options.md](docs/options.md)**. In particular, a smaller `--window` leads to lower VRAM / RAM usage. 
 
 ## Output
 
