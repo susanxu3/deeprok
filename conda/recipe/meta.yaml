@@ -22,7 +22,7 @@ package:
 
 source:
   url: https://github.com/susanxu3/{{ name }}/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  sha256: ce0919f1e0eb4cbdd2bdf6eecbad4b60f4987a5d1037a4e941e8ffdea5081e53
 
 build:
   number: 0
